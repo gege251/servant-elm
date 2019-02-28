@@ -5,7 +5,11 @@ resolver: lts-11.2
 
 # Local packages, usually specified by relative directory name
 packages:
-- '.'
+  - "."
+  - location:
+      git: https://github.com/gege251/elm-export
+      commit: fdee43cee30822836bdde1f231fdf1e909a68e80
+    extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: []
@@ -15,7 +19,6 @@ flags: {}
 
 # Extra package databases containing global packages
 extra-package-dbs: []
-
 # Control whether we use the GHC we find on the path
 # system-ghc: true
 
