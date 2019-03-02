@@ -24,9 +24,9 @@ main =
   hspec spec
 
 spec :: Test.Hspec.Spec
-spec = do
-  describe "generateElmForAPI" $ do
-    it "creates compilable javascript" $ do
+spec =
+  describe "generateElmForAPI" $
+    it "creates compilable javascript" $
       inTempDirectory $ do
         writeFile "elm.json" $ unindent $ [i|
           {
@@ -37,14 +37,18 @@ spec = do
               "elm-version": "0.19.0",
               "dependencies": {
                   "direct": {
-                      "elm/core": "1.0.0",
-                      "elm/json": "1.0.0",
+                      "elm/core": "1.0.2",
+                      "elm/json": "1.1.3",
                       "elm-community/json-extra": "3.0.0",
-                      "elm/http": "1.0.0",
+                      "elm/http": "2.0.0",
                       "elm/url": "1.0.0",
                       "NoRedInk/elm-json-decode-pipeline": "1.0.0"
                   },
-                  "indirect": {}
+                  "indirect": {
+                    "elm/bytes": "1.0.8",
+                    "elm/file": "1.0.4",
+                    "elm/time": "1.0.0"
+                  }
               },
               "test-dependencies": {
                   "direct": {},
