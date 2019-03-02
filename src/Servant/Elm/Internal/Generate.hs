@@ -106,11 +106,12 @@ You probably want to include this at the top of your generated Elm module.
 
 The default required imports are:
 
+> import Http
 > import Json.Decode exposing (..)
 > import Json.Decode.Pipeline exposing (..)
 > import Json.Encode
-> import Http
 > import String
+> import Url.Builder
 -}
 defElmImports :: Text
 defElmImports = T.unlines
@@ -166,10 +167,7 @@ generateElmForRequest opts request = funcDef
   funcDef = vsep
     [ fnName <+> ":" <+> typeSignature
     , fnName <+> args <+> equals
-    , case letParams of
-      Just params ->
-        indent i (vsep ["let", indent i params, "in", indent i elmRequest])
-      Nothing -> indent i elmRequest
+    , indent i elmRequest
     ]
 
   fnName =
@@ -179,20 +177,28 @@ generateElmForRequest opts request = funcDef
 
   args          = mkArgs opts request
 
-  letParams     = mkLetParams opts request
-
   elmRequest    = mkRequest opts request
 
 
 mkTypeSignature :: ElmOptions -> F.Req ElmDatatype -> Doc
 mkTypeSignature opts request = (hsep . punctuate " ->" . concat)
-  [ catMaybes [urlPrefixType]
+  [ toMsgType
+  , catMaybes [urlPrefixType]
   , headerTypes
   , urlCaptureTypes
   , queryTypes
   , catMaybes [bodyType, returnType]
   ]
  where
+  toMsgType :: [Doc]
+  toMsgType =
+    let maybeResult = fmap elmTypeRef $ request ^. F.reqReturnType
+    in  case maybeResult of
+          Just result ->
+            [parens $ "Result Http.Error" <+> parens result <+> "-> msg"]
+          Nothing -> [parens "Result Http.Error NoContent"]
+
+
   urlPrefixType :: Maybe Doc
   urlPrefixType = case (urlPrefix opts) of
     Dynamic  -> Just "String"
@@ -225,9 +231,7 @@ mkTypeSignature opts request = (hsep . punctuate " ->" . concat)
   bodyType = fmap elmTypeRef $ request ^. F.reqBody
 
   returnType :: Maybe Doc
-  returnType = do
-    result <- fmap elmTypeRef $ request ^. F.reqReturnType
-    pure ("Http.Request" <+> parens result)
+  returnType = pure "Cmd msg"
 
 
 elmHeaderArg :: F.HeaderArg ElmDatatype -> Doc
@@ -257,7 +261,9 @@ isNotCookie header = header ^. F.headerArg . F.argName . to
 mkArgs :: ElmOptions -> F.Req ElmDatatype -> Doc
 mkArgs opts request =
   (hsep . concat)
-    $ [ -- Dynamic url prefix
+    $ [ pure "toMsg"
+      ,
+     -- Dynamic url prefix
         case urlPrefix opts of
         Dynamic  -> ["urlBase"]
         Static _ -> []
@@ -278,63 +284,39 @@ mkArgs opts request =
       ]
 
 
-mkLetParams :: ElmOptions -> F.Req ElmDatatype -> Maybe Doc
-mkLetParams opts request = if null (request ^. F.reqUrl . F.queryStr)
-  then Nothing
-  else Just $ "params =" <$> indent
+mkParams :: ElmOptions -> F.Req ElmDatatype -> Doc
+mkParams opts request = if null (request ^. F.reqUrl . F.queryStr)
+  then "[]"
+  else parens $ "List.concat" <$> indent
     i
-    ("List.filter (not << String.isEmpty)" <$> indent i (elmList params))
+    (elmList $ map paramToDoc (request ^. F.reqUrl . F.queryStr))
  where
-  params :: [Doc]
-  params = map paramToDoc (request ^. F.reqUrl . F.queryStr)
-
   paramToDoc :: F.QueryArg ElmDatatype -> Doc
-  paramToDoc qarg =
-    -- something wrong with indentation here...
-                    case qarg ^. F.queryArgType of
-    F.Normal ->
-      let argType      = qarg ^. F.queryArgName . F.argType
-          wrapped      = isElmMaybeType argType
-          toStringSrc' = toStringSrc ">>" opts argType
-      in  (if wrapped then elmName else "Just" <+> elmName) <$> indent
-            4
-            (   "|> Maybe.map"
-            <+> parens
-                  (toStringSrc' <+> "Url.percentEncode >> (++)" <+> dquotes
-                    (name <> equals)
-                  )
-            <$> "|> Maybe.withDefault"
-            <+> dquotes empty
-            )
+  paramToDoc qarg = case qarg ^. F.queryArgType of
+    F.Normal -> brackets
+      ("Url.Builder.string" <+> dquotes name <+> if isMaybe
+        then withDefault $ elmName <+> toStringSrc'
+        else elmName
+      )
 
-    F.Flag ->
-      "if"
-        <+> elmName
-        <+> "then"
-        <$> indent 4 (dquotes (name <> equals))
-        <$> indent 2 "else"
-        <$> indent 4 (dquotes empty)
+
+    F.Flag -> brackets
+      ("Url.Builder.string" <+> dquotes name <+> if isMaybe
+        then withDefault $ elmName <+> toStringSrc'
+        else elmName
+      )
 
     F.List ->
-      let argType = qarg ^. F.queryArgName . F.argType
-      in  elmName <$> indent
-            4
-            (   "|> List.map"
-            <+> parens
-                  (   backslash
-                  <>  "val ->"
-                  <+> dquotes (name <> "[]=")
-                  <+> "++ (val |>"
-                  <+> toStringSrc "|>" opts argType
-                  <+> "Url.percentEncode)"
-                  )
-            <$> "|> String.join"
-            <+> dquotes "&"
-            )
+      "List.map" <+> (parens $ "Url.Builder.string" <+> dquotes name) <+> parens
+        (elmName <+> toStringSrc')
    where
-    elmName = elmQueryArg qarg
-    name    = qarg ^. F.queryArgName . F.argName . to (stext . F.unPathSegment)
-
+    elmName      = elmQueryArg qarg
+    argType      = qarg ^. F.queryArgName . F.argType
+    toStringSrc' = toStringSrcL "|>" opts argType
+    isMaybe      = isElmMaybeType argType
+    name = qarg ^. F.queryArgName . F.argName . to (stext . F.unPathSegment)
+    withDefault value =
+      parens $ value <+> "|> Maybe.withDefault" <+> dquotes empty
 
 mkRequest :: ElmOptions -> F.Req ElmDatatype -> Doc
 mkRequest opts request = "Http.request" <$> indent
@@ -346,7 +328,7 @@ mkRequest opts request = "Http.request" <$> indent
     , "body =" <$> indent i body
     , "expect =" <$> indent i expect
     , "timeout =" <$> indent i "Nothing"
-    , "withCredentials =" <$> indent i "False"
+    , "tracker =" <$> indent i "Nothing"
     ]
   )
  where
@@ -368,7 +350,7 @@ mkRequest opts request = "Http.request" <$> indent
   headers =
     [ mkHeader header | header <- request ^. F.reqHeaders, isNotCookie header ]
 
-  url  = mkUrl opts (request ^. F.reqUrl . F.path) <> mkQueryParams request
+  url  = mkUrl opts request
 
   body = case request ^. F.reqBody of
     Nothing -> "Http.emptyBody"
@@ -384,22 +366,27 @@ mkRequest opts request = "Http.request" <$> indent
       -> let elmConstructor =
                Elm.toElmTypeRefWith (elmExportOptions opts) elmTypeExpr
          in
-           "Http.expectStringResponse" <$> indent
+           "Http.expectStringResponse toMsg" <$> indent
              i
              (parens
                (   backslash
-               <>  "res"
+               <>  "response"
                <+> "->"
                <$> indent
                      i
-                     (   "if String.isEmpty res.body then"
-                     <$> indent i "Ok"
-                     <+> stext elmConstructor
-                     <$> "else"
+                     (   "case response of"
+                     <$> indent i       "Http.GoodStatus_ _ \"\" ->"
+                     <$> indent (2 * i) ("Ok" <+> stext elmConstructor)
+
+                     <$> indent i       "_ ->"
                      <$> indent
-                           i
-                           ("Err" <+> dquotes
-                             "Expected the response body to be empty"
+                           (2 * i)
+                           (   "Err"
+                           <+> parens
+                                 (   "Http.BadBody"
+                                 <+> dquotes
+                                       "Expected the response body to be empty"
+                                 )
                            )
                      )
                <>  line
@@ -407,20 +394,29 @@ mkRequest opts request = "Http.request" <$> indent
              )
 
 
-    Just elmTypeExpr -> "Http.expectJson"
+    Just elmTypeExpr -> "Http.expectJson toMsg"
       <+> stext (Elm.toElmDecoderRefWith (elmExportOptions opts) elmTypeExpr)
 
     Nothing -> error "mkHttpRequest: no reqReturnType?"
 
 
-mkUrl :: ElmOptions -> [F.Segment ElmDatatype] -> Doc
-mkUrl opts segments = "String.join" <+> dquotes "/" <$> (indent i . elmList)
-  ( case urlPrefix opts of
-      Dynamic    -> "urlBase"
-      Static url -> dquotes (stext url)
-  : map segmentToDoc segments
-  )
+mkUrl :: ElmOptions -> F.Req ElmDatatype -> Doc
+mkUrl opts request =
+  "Url.Builder.crossOrigin"
+    <+> urlBase
+    <$> indent i segmentsDoc
+    <$> indent i paramsDoc
  where
+  urlBase :: Doc
+  urlBase = case urlPrefix opts of
+    Dynamic    -> "urlBase"
+    Static url -> dquotes $ stext url
+
+  paramsDoc :: Doc
+  paramsDoc = mkParams opts request
+
+  segmentsDoc :: Doc
+  segmentsDoc = elmList $ map segmentToDoc (request ^. F.reqUrl . F.path)
 
   segmentToDoc :: F.Segment ElmDatatype -> Doc
   segmentToDoc s = case F.unSegment s of
@@ -428,21 +424,10 @@ mkUrl opts segments = "String.join" <+> dquotes "/" <$> (indent i . elmList)
     F.Cap arg ->
       let
         -- Don't use "toString" on Elm Strings, otherwise we get extraneous quotes.
-          toStringSrc' = toStringSrc "|>" opts (arg ^. F.argType)
-      in  elmCaptureArg s <+> "|>" <+> toStringSrc' <+> "Url.percentEncode"
+          toStringSrc' = toStringSrc "<|" opts (arg ^. F.argType)
+      in  toStringSrc' <+> elmCaptureArg s
 
 
-mkQueryParams :: F.Req ElmDatatype -> Doc
-mkQueryParams request = if null (request ^. F.reqUrl . F.queryStr)
-  then empty
-  else line <> "++" <+> align
-    (   "if List.isEmpty params then"
-    <$> indent i (dquotes empty)
-    <$> "else"
-    <$> indent
-          i
-          (dquotes "?" <+> "++ String.join" <+> dquotes "&" <+> "params")
-    )
 
 
 {- | Determines whether we construct an Elm function that expects an empty
@@ -459,6 +444,18 @@ toStringSrc operator opts argType
   = stext ""
   | otherwise
   = stext $ toStringSrcTypes operator opts argType <> " " <> operator
+
+
+{- | Same as toStringSrc but with operator on the left side.
+-}
+toStringSrcL :: T.Text -> ElmOptions -> ElmDatatype -> Doc
+toStringSrcL operator opts argType
+  |
+  -- Don't use "toString" on Elm Strings, otherwise we get extraneous quotes.
+    isElmStringType opts argType
+  = stext ""
+  | otherwise
+  = stext $ operator <> " " <> toStringSrcTypes operator opts argType
 
 
 {- | Determines whether we call `toString` on URL captures and query params of

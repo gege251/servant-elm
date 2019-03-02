@@ -1,32 +1,34 @@
 module PutNothingSource exposing (..)
 
 import Http
+import Url.Builder
 
 
-putNothing : Http.Request (())
-putNothing =
+putNothing : (Result Http.Error (()) -> msg) -> Cmd msg
+putNothing toMsg =
     Http.request
         { method =
             "PUT"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "nothing"
+            Url.Builder.crossOrigin ""
+                [ "nothing"
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectStringResponse
-                (\res ->
-                    if String.isEmpty res.body then
-                        Ok ()
-                    else
-                        Err "Expected the response body to be empty"
+            Http.expectStringResponse toMsg
+                (\response ->
+                    case response of
+                        Http.GoodStatus_ _ "" ->
+                            Ok ()
+                        _ ->
+                            Err (Http.BadBody "Expected the response body to be empty")
                 )
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

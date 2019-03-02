@@ -1,28 +1,28 @@
 module GetBooksByTitleSource exposing (..)
 
 import Http
-import Url
+import Url.Builder
 
 
-getBooksByTitle : String -> Http.Request (Book)
-getBooksByTitle capture_title =
+getBooksByTitle : (Result Http.Error (Book) -> msg) -> String -> Cmd msg
+getBooksByTitle toMsg capture_title =
     Http.request
         { method =
             "GET"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "books"
-                , capture_title |> Url.percentEncode
+            Url.Builder.crossOrigin ""
+                [ "books"
+                , capture_title
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectJson decodeBook
+            Http.expectJson toMsg decodeBook
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

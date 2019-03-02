@@ -2,26 +2,27 @@ module GetOneSource exposing (..)
 
 import Http
 import Json.Decode exposing (..)
+import Url.Builder
 
 
-getOne : Http.Request (Int)
-getOne =
+getOne : (Result Http.Error (Int) -> msg) -> Cmd msg
+getOne toMsg =
     Http.request
         { method =
             "GET"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "one"
+            Url.Builder.crossOrigin ""
+                [ "one"
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectJson int
+            Http.expectJson toMsg int
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

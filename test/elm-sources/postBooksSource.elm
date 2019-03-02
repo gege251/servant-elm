@@ -1,32 +1,34 @@
 module PostBooksSource exposing (..)
 
 import Http
+import Url.Builder
 
 
-postBooks : Book -> Http.Request (NoContent)
-postBooks body =
+postBooks : (Result Http.Error (NoContent) -> msg) -> Book -> Cmd msg
+postBooks toMsg body =
     Http.request
         { method =
             "POST"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "books"
+            Url.Builder.crossOrigin ""
+                [ "books"
                 ]
+                []
         , body =
             Http.jsonBody (encodeBook body)
         , expect =
-            Http.expectStringResponse
-                (\res ->
-                    if String.isEmpty res.body then
-                        Ok NoContent
-                    else
-                        Err "Expected the response body to be empty"
+            Http.expectStringResponse toMsg
+                (\response ->
+                    case response of
+                        Http.GoodStatus_ _ "" ->
+                            Ok NoContent
+                        _ ->
+                            Err (Http.BadBody "Expected the response body to be empty")
                 )
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

@@ -2,26 +2,27 @@ module GetOneWithDynamicUrlSource exposing (..)
 
 import Http
 import Json.Decode exposing (..)
+import Url.Builder
 
 
-getOne : String -> Http.Request (Int)
-getOne urlBase =
+getOne : (Result Http.Error (Int) -> msg) -> String -> Cmd msg
+getOne toMsg urlBase =
     Http.request
         { method =
             "GET"
         , headers =
             []
         , url =
-            String.join "/"
-                [ urlBase
-                , "one"
+            Url.Builder.crossOrigin urlBase
+                [ "one"
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectJson int
+            Http.expectJson toMsg int
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

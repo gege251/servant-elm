@@ -1,32 +1,34 @@
 module GetNothingSource exposing (..)
 
 import Http
+import Url.Builder
 
 
-getNothing : Http.Request (NoContent)
-getNothing =
+getNothing : (Result Http.Error (NoContent) -> msg) -> Cmd msg
+getNothing toMsg =
     Http.request
         { method =
             "GET"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "nothing"
+            Url.Builder.crossOrigin ""
+                [ "nothing"
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectStringResponse
-                (\res ->
-                    if String.isEmpty res.body then
-                        Ok NoContent
-                    else
-                        Err "Expected the response body to be empty"
+            Http.expectStringResponse toMsg
+                (\response ->
+                    case response of
+                        Http.GoodStatus_ _ "" ->
+                            Ok NoContent
+                        _ ->
+                            Err (Http.BadBody "Expected the response body to be empty")
                 )
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

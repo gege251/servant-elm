@@ -1,28 +1,29 @@
 module GetBooksByIdSource exposing (..)
 
 import Http
-import Url
+import String
+import Url.Builder
 
 
-getBooksById : Int -> Http.Request (Book)
-getBooksById capture_id =
+getBooksById : (Result Http.Error (Book) -> msg) -> Int -> Cmd msg
+getBooksById toMsg capture_id =
     Http.request
         { method =
             "GET"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "books"
-                , capture_id |> String.fromInt |> Url.percentEncode
+            Url.Builder.crossOrigin ""
+                [ "books"
+                , String.fromInt <| capture_id
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectJson decodeBook
+            Http.expectJson toMsg decodeBook
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

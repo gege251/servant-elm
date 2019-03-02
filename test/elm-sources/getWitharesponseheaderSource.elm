@@ -2,26 +2,27 @@ module GetWithAResponseHeaderSource exposing (..)
 
 import Http
 import Json.Decode exposing (..)
+import Url.Builder
 
 
-getWitharesponseheader : Http.Request (String)
-getWitharesponseheader =
+getWitharesponseheader : (Result Http.Error (String) -> msg) -> Cmd msg
+getWitharesponseheader toMsg =
     Http.request
         { method =
             "GET"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "with-a-response-header"
+            Url.Builder.crossOrigin ""
+                [ "with-a-response-header"
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectJson string
+            Http.expectJson toMsg string
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

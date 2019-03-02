@@ -3,26 +3,27 @@ module PostTwoSource exposing (..)
 import Http
 import Json.Decode exposing (..)
 import Json.Encode
+import Url.Builder
 
 
-postTwo : String -> Http.Request (Maybe (Int))
-postTwo body =
+postTwo : (Result Http.Error (Maybe (Int)) -> msg) -> String -> Cmd msg
+postTwo toMsg body =
     Http.request
         { method =
             "POST"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "two"
+            Url.Builder.crossOrigin ""
+                [ "two"
                 ]
+                []
         , body =
             Http.jsonBody (Json.Encode.string body)
         , expect =
-            Http.expectJson (nullable int)
+            Http.expectJson toMsg (nullable int)
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

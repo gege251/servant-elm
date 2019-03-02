@@ -2,52 +2,33 @@ module GetBooksSource exposing (..)
 
 import Http
 import Json.Decode exposing (..)
-import Url
+import Url.Builder
 
 
-getBooks : Bool -> Maybe (String) -> Maybe (Int) -> String -> List (Bool) -> Http.Request (List (Book))
-getBooks query_published query_sort query_year query_category query_filters =
-    let
-        params =
-            List.filter (not << String.isEmpty)
-                [ if query_published then
-                    "published="
-                  else
-                    ""
-                , query_sort
-                    |> Maybe.map (identity >> Url.percentEncode >> (++) "sort=")
-                    |> Maybe.withDefault ""
-                , query_year
-                    |> Maybe.map (String.fromInt >> Url.percentEncode >> (++) "year=")
-                    |> Maybe.withDefault ""
-                , Just query_category
-                    |> Maybe.map (Url.percentEncode >> (++) "category=")
-                    |> Maybe.withDefault ""
-                , query_filters
-                    |> List.map (\val -> "filters[]=" ++ (val |> (\v -> if v then "True" else "False") |> Url.percentEncode))
-                    |> String.join "&"
+getBooks : (Result Http.Error (List (Book)) -> msg) -> Bool -> Maybe (String) -> Maybe (Int) -> String -> List (Bool) -> Cmd msg
+getBooks toMsg query_published query_sort query_year query_category query_filters =
+    Http.request
+        { method =
+            "GET"
+        , headers =
+            []
+        , url =
+            Url.Builder.crossOrigin ""
+                [ "books"
                 ]
-    in
-        Http.request
-            { method =
-                "GET"
-            , headers =
-                []
-            , url =
-                String.join "/"
-                    [ ""
-                    , "books"
-                    ]
-                ++ if List.isEmpty params then
-                       ""
-                   else
-                       "?" ++ String.join "&" params
-            , body =
-                Http.emptyBody
-            , expect =
-                Http.expectJson (list decodeBook)
-            , timeout =
-                Nothing
-            , withCredentials =
-                False
-            }
+                (List.concat
+                    [ [Url.Builder.string "published" query_published]
+                    , [Url.Builder.string "sort" (query_sort |> identity |> Maybe.withDefault "")]
+                    , [Url.Builder.string "year" (query_year |> String.fromInt |> Maybe.withDefault "")]
+                    , [Url.Builder.string "category" query_category]
+                    , List.map (Url.Builder.string "filters") (query_filters |> (\v -> if v then "True" else "False"))
+                    ])
+        , body =
+            Http.emptyBody
+        , expect =
+            Http.expectJson toMsg (list decodeBook)
+        , timeout =
+            Nothing
+        , tracker =
+            Nothing
+        }

@@ -1,11 +1,11 @@
 module Generated.MyApi exposing (..)
 
+import Http
 import Json.Decode exposing (..)
 import Json.Decode.Pipeline exposing (..)
 import Json.Encode
-import Http
 import String
-import Url
+import Url.Builder
 
 
 type alias Book =
@@ -14,28 +14,28 @@ type alias Book =
 
 decodeBook : Decoder Book
 decodeBook =
-    succeed Book
+    Json.Decode.succeed Book
         |> required "name" string
 
-getBooksByBookId : Int -> Http.Request (Book)
-getBooksByBookId capture_bookId =
+getBooksByBookId : (Result Http.Error (Book) -> msg) -> Int -> Cmd msg
+getBooksByBookId toMsg capture_bookId =
     Http.request
         { method =
             "GET"
         , headers =
             []
         , url =
-            String.join "/"
-                [ ""
-                , "books"
-                , capture_bookId |> String.fromInt |> Url.percentEncode
+            Url.Builder.crossOrigin ""
+                [ "books"
+                , capture_bookId |> String.fromInt 
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectJson decodeBook
+            Http.expectJson toMsg decodeBook
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }

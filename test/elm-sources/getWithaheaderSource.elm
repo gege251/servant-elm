@@ -2,10 +2,11 @@ module GetWithAHeaderSource exposing (..)
 
 import Http
 import Json.Decode exposing (..)
+import Url.Builder
 
 
-getWithaheader : Maybe (String) -> Maybe (Int) -> String -> Int -> Http.Request (String)
-getWithaheader header_myStringHeader header_MyIntHeader header_MyRequiredStringHeader header_MyRequiredIntHeader =
+getWithaheader : (Result Http.Error (String) -> msg) -> Maybe (String) -> Maybe (Int) -> String -> Int -> Cmd msg
+getWithaheader toMsg header_myStringHeader header_MyIntHeader header_MyRequiredStringHeader header_MyRequiredIntHeader =
     Http.request
         { method =
             "GET"
@@ -17,16 +18,16 @@ getWithaheader header_myStringHeader header_MyIntHeader header_MyRequiredStringH
                 , Maybe.map (String.fromInt >> Http.header "MyRequiredIntHeader") (Just header_MyRequiredIntHeader)
                 ]
         , url =
-            String.join "/"
-                [ ""
-                , "with-a-header"
+            Url.Builder.crossOrigin ""
+                [ "with-a-header"
                 ]
+                []
         , body =
             Http.emptyBody
         , expect =
-            Http.expectJson string
+            Http.expectJson toMsg string
         , timeout =
             Nothing
-        , withCredentials =
-            False
+        , tracker =
+            Nothing
         }
