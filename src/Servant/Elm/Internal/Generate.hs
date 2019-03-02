@@ -296,27 +296,30 @@ mkParams opts request = if null (request ^. F.reqUrl . F.queryStr)
     F.Normal -> brackets
       ("Url.Builder.string" <+> dquotes name <+> if isMaybe
         then withDefault $ elmName <+> toStringSrc'
-        else elmName
+        else elmName <+> toStringSrc'
       )
-
 
     F.Flag -> brackets
       ("Url.Builder.string" <+> dquotes name <+> if isMaybe
-        then withDefault $ elmName <+> toStringSrc'
-        else elmName
+        then withDefault $ parens $ elmName <+> toStringSrc'
+        else parens $ elmName <+> toStringSrc'
       )
 
     F.List ->
       "List.map" <+> (parens $ "Url.Builder.string" <+> dquotes name) <+> parens
         (elmName <+> toStringSrc')
    where
-    elmName      = elmQueryArg qarg
-    argType      = qarg ^. F.queryArgName . F.argType
-    toStringSrc' = toStringSrcL "|>" opts argType
-    isMaybe      = isElmMaybeType argType
-    name = qarg ^. F.queryArgName . F.argName . to (stext . F.unPathSegment)
+    elmName = elmQueryArg qarg
+    argType = qarg ^. F.queryArgName . F.argType
+    toStringSrc'
+      | isElmMaybeType argType = toStringSrcL "|> Maybe.map" opts argType
+      | isElmListType argType  = toStringSrcL "|> List.map" opts argType
+      | otherwise              = toStringSrcL "|>" opts argType
+    isMaybe = isElmMaybeType argType
+    name    = qarg ^. F.queryArgName . F.argName . to (stext . F.unPathSegment)
     withDefault value =
       parens $ value <+> "|> Maybe.withDefault" <+> dquotes empty
+
 
 mkRequest :: ElmOptions -> F.Req ElmDatatype -> Doc
 mkRequest opts request = "Http.request" <$> indent
@@ -513,6 +516,12 @@ isElmMaybeType :: ElmDatatype -> Bool
 isElmMaybeType (ElmPrimitive (EMaybe _)) = True
 isElmMaybeType _                         = False
 
+
+{- | Determines whether we call `String.fromInt` on URL captures and query params of this type in Elm.
+-}
+isElmListType :: ElmDatatype -> Bool
+isElmListType (ElmPrimitive (EList _)) = True
+isElmListType _                        = False
 
 -- Doc helpers
 
