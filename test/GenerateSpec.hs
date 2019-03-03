@@ -67,10 +67,11 @@ spec = describe "encoding a simple api" $ do
         , "module GetBooksSource exposing (..)\n\n"
         <> "import Http\n"
         <> "import Json.Decode exposing (..)\n"
+        <> "import Maybe.Extra\n"
         <> "import Url.Builder\n\n\n"
         )
       , ( "test/elm-sources/postBooksSource.elm"
-        , "module PostBooksSource exposing (..)\n\n" 
+        , "module PostBooksSource exposing (..)\n\n"
         <> "import Http\n"
         <> "import Url.Builder\n\n\n"
         )

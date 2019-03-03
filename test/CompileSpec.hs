@@ -42,7 +42,8 @@ spec =
                       "elm-community/json-extra": "3.0.0",
                       "elm/http": "2.0.0",
                       "elm/url": "1.0.0",
-                      "NoRedInk/elm-json-decode-pipeline": "1.0.0"
+                      "NoRedInk/elm-json-decode-pipeline": "1.0.0",
+                      "elm-community/maybe-extra": "5.0.0"
                   },
                   "indirect": {
                     "elm/bytes": "1.0.8",

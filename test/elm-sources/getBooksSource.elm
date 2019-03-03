@@ -2,6 +2,7 @@ module GetBooksSource exposing (..)
 
 import Http
 import Json.Decode exposing (..)
+import Maybe.Extra
 import Url.Builder
 
 
@@ -17,11 +18,24 @@ getBooks toMsg query_published query_sort query_year query_category query_filter
                 [ "books"
                 ]
                 (List.concat
-                    [ [Url.Builder.string "published" (query_published |> (\v -> if v then "True" else "False"))]
-                    , [Url.Builder.string "sort" (query_sort |> Maybe.map identity |> Maybe.withDefault "")]
-                    , [Url.Builder.string "year" (query_year |> Maybe.map String.fromInt |> Maybe.withDefault "")]
-                    , [Url.Builder.string "category" query_category]
-                    , List.map (Url.Builder.string "filters") (query_filters |> List.map (\v -> if v then "True" else "False"))
+                    [ query_published
+                        |> List.singleton
+                        |> List.map (\v -> if v then "True" else "False")
+                        |> List.map (Url.Builder.string "published")
+                    , query_sort
+                        |> Maybe.Extra.toList
+                        |> List.map identity
+                        |> List.map (Url.Builder.string "sort")
+                    , query_year
+                        |> Maybe.Extra.toList
+                        |> List.map String.fromInt
+                        |> List.map (Url.Builder.string "year")
+                    , query_category
+                        |> List.singleton
+                        |> List.map (Url.Builder.string "category")
+                    , query_filters
+                        |> List.map (\v -> if v then "True" else "False")
+                        |> List.map (Url.Builder.string "filters")
                     ])
         , body =
             Http.emptyBody

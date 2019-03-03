@@ -119,6 +119,7 @@ defElmImports = T.unlines
   , "import Json.Decode exposing (..)"
   , "import Json.Decode.Pipeline exposing (..)"
   , "import Json.Encode"
+  , "import Maybe.Extra"
   , "import String"
   , "import Url.Builder"
   ]
@@ -287,38 +288,36 @@ mkArgs opts request =
 mkParams :: ElmOptions -> F.Req ElmDatatype -> Doc
 mkParams opts request = if null (request ^. F.reqUrl . F.queryStr)
   then "[]"
-  else parens $ "List.concat" <$> indent
-    i
-    (elmList $ map paramToDoc (request ^. F.reqUrl . F.queryStr))
+  else
+    parens
+    $   "List.concat"
+    <$> (indent i (elmList $ map paramToDoc (request ^. F.reqUrl . F.queryStr)))
  where
   paramToDoc :: F.QueryArg ElmDatatype -> Doc
   paramToDoc qarg = case qarg ^. F.queryArgType of
-    F.Normal -> brackets
-      ("Url.Builder.string" <+> dquotes name <+> if isMaybe
-        then withDefault $ elmName <+> toStringSrc'
-        else elmName <+> toStringSrc'
-      )
+    F.List -> elmName <$> pipeToString "List" <$> pipeQueryBuilder "List"
 
-    F.Flag -> brackets
-      ("Url.Builder.string" <+> dquotes name <+> if isMaybe
-        then withDefault $ parens $ elmName <+> toStringSrc'
-        else parens $ elmName <+> toStringSrc'
-      )
-
-    F.List ->
-      "List.map" <+> (parens $ "Url.Builder.string" <+> dquotes name) <+> parens
-        (elmName <+> toStringSrc')
+    _ ->
+      elmName
+        <$> indent
+              i
+              (if isElmMaybeType argType
+                then "|> Maybe.Extra.toList"
+                else "|> List.singleton"
+              )
+        <$> pipeToString "List"
+        <$> pipeQueryBuilder "List"
    where
     elmName = elmQueryArg qarg
     argType = qarg ^. F.queryArgName . F.argType
-    toStringSrc'
-      | isElmMaybeType argType = toStringSrcL "|> Maybe.map" opts argType
-      | isElmListType argType  = toStringSrcL "|> List.map" opts argType
-      | otherwise              = toStringSrcL "|>" opts argType
-    isMaybe = isElmMaybeType argType
     name    = qarg ^. F.queryArgName . F.argName . to (stext . F.unPathSegment)
-    withDefault value =
-      parens $ value <+> "|> Maybe.withDefault" <+> dquotes empty
+
+    pipeQueryBuilder functor = indent i ("|> " <> functor <> ".map")
+      <+> parens ("Url.Builder.string" <+> dquotes name)
+
+    pipeToString functor =
+      indent i (toStringSrcL ("|> " <> functor <> ".map") opts argType)
+
 
 
 mkRequest :: ElmOptions -> F.Req ElmDatatype -> Doc
